@@ -3,9 +3,9 @@ package org.example.productservice.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.productservice.dto.*;
-import org.example.productservice.events.StockUpdateEvent;
 import org.example.productservice.exceptions.ProductNotFoundException;
 import org.example.productservice.model.Product;
+import org.example.commonevents.StockUpdateEvent;
 import org.example.productservice.repository.ProductRepository;
 
 import org.springframework.data.domain.Page;

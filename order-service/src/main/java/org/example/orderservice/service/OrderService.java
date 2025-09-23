@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.orderservice.config.Product;
 import org.example.orderservice.config.ProductServiceClient;
 import org.example.orderservice.dto.*;
-import org.example.orderservice.events.StockUpdateEvent;
+import org.example.commonevents.StockUpdateEvent;
 import org.example.orderservice.exceptions.OrderNotFoundException;
 import org.example.orderservice.exceptions.OutOfStockException;
 import org.example.orderservice.model.Order;
@@ -90,7 +90,7 @@ public class OrderService {
 
     public void publishStockUpdate(Order order) {
         for (OrderItem item : order.getItems()){
-            StockUpdateEvent event = new StockUpdateEvent(item.getProductId(),item.getQuantity());
+            StockUpdateEvent event = new StockUpdateEvent(item.getProductId(), item.getQuantity());
             kafkaTemplate.send("stock-update", event);
         }
     }
