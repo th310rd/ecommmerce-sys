@@ -20,6 +20,7 @@
         <module>service-registry</module>
         <module>config-server</module>
         <module>order-service</module>
+        <module>common-events</module>
     </modules>
     <dependencyManagement>
         <dependencies>
