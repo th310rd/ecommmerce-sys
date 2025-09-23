@@ -1,19 +1,22 @@
 package org.example.orderservice.service;
 
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.example.orderservice.config.Product;
+import org.example.orderservice.config.ProductServiceClient;
 import org.example.orderservice.dto.*;
+import org.example.orderservice.events.StockUpdateEvent;
 import org.example.orderservice.exceptions.OrderNotFoundException;
+import org.example.orderservice.exceptions.OutOfStockException;
 import org.example.orderservice.model.Order;
 import org.example.orderservice.model.OrderItem;
 import org.example.orderservice.model.Status;
 import org.example.orderservice.repository.OrderRepository;
-import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,50 +25,36 @@ import java.util.Optional;
 public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderMapper orderMapper;
-    private final KafkaTemplate<String, ProductDetailsRequest> kafkaTemplate;
     private final OrderItemMapper orderItemMapper;
+    private final KafkaTemplate<String, StockUpdateEvent> kafkaTemplate;
+    private final ProductServiceClient client;
 
     @Transactional
-    @KafkaListener(topics = "product-details-response-topic",groupId = "order-service")
-    public void handleProductDetailsResponse(ProductDetailsResponse response) {
-        Order order = orderRepository.findById(response.getOrderId()).orElseThrow(() -> new OrderNotFoundException("Order not found"));
-
-        BigDecimal totalPrice = BigDecimal.ZERO;
-        for (ProductDetails details : response.getProductDetails()){
-            OrderItem orderItem = order.getItems().stream()
-                    .filter(item -> item.getProductId().equals(details.getProductId()) )
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("Product not found"));
-
-            orderItem.setPrice(details.getPrice());
-            if (details.getStockQuantity() < orderItem.getQuantity()){
-                orderItem.setQuantity(details.getStockQuantity());
-            }
-            totalPrice = totalPrice.add(orderItem.getPrice().multiply(BigDecimal.valueOf(orderItem.getQuantity())));
-        }
-        order.setTotalPrice(totalPrice);
-        order.setStatus(Status.CREATED);
-        orderRepository.save(order);
-    }
-
-    @Transactional
-    public OrderResponseDto createOrder(@Valid OrderRequestDto orderRequestDto) {
-        Order order = new Order();
+    public OrderResponseDto createOrder(OrderRequestDto orderRequestDto) throws OutOfStockException {
+        Order order = new  Order();
         order.setStatus(Status.PENDING);
+        BigDecimal totalPrice = BigDecimal.ZERO;
         order.setItems(orderRequestDto.getOrderItems().stream()
                 .map(orderItemMapper::toEntity)
                 .toList());
-        Order savedOrder = orderRepository.save(order);
 
-        ProductDetailsRequest request = new ProductDetailsRequest();
-        request.setOrderId(savedOrder.getId());
-        request.setProductIds(savedOrder.getItems().stream()
-                .map(OrderItem::getProductId)
-                        .toList()
-                );
-        kafkaTemplate.send("order-details-request-topic", request);
-        return orderMapper.toDto(savedOrder);
+        for (OrderItem item : order.getItems()){
+            Product product = client.getProduct(item.getProductId());
+            if (item.getQuantity() > product.getStockQuantity()){
+                order.setStatus(Status.CANCELLED);
+                throw new OutOfStockException("Not enough product in the stock");
+            }
+            totalPrice = totalPrice.add(product.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
+            item.setPrice(product.getPrice());
+            order.setTotalPrice(totalPrice);
+            order.setOrderDate(LocalDateTime.now());
+        }
+        orderRepository.save(order);
+        publishStockUpdate(order);
+        return orderMapper.toDto(order);
     }
+
+
 
     @Transactional(readOnly = true)
     public List<OrderResponseDto> getAllOrders() {
@@ -99,7 +88,10 @@ public class OrderService {
         orderRepository.delete(oldOrder);
     }
 
-
-
-
+    public void publishStockUpdate(Order order) {
+        for (OrderItem item : order.getItems()){
+            StockUpdateEvent event = new StockUpdateEvent(item.getProductId(),item.getQuantity());
+            kafkaTemplate.send("stock-update", event);
+        }
+    }
 }

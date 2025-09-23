@@ -3,6 +3,7 @@ package org.example.orderservice.controller;
 import lombok.RequiredArgsConstructor;
 import org.example.orderservice.dto.OrderRequestDto;
 import org.example.orderservice.dto.OrderResponseDto;
+import org.example.orderservice.exceptions.OutOfStockException;
 import org.example.orderservice.model.Status;
 import org.example.orderservice.service.OrderService;
 import org.springframework.http.HttpStatus;
@@ -29,7 +30,7 @@ public class OrderController {
     }
 
     @PostMapping
-    public ResponseEntity<OrderResponseDto> createOrder(@RequestBody OrderRequestDto orderRequestDto) {
+    public ResponseEntity<OrderResponseDto> createOrder(@RequestBody OrderRequestDto orderRequestDto) throws OutOfStockException {
         return new ResponseEntity<>(orderService.createOrder(orderRequestDto), HttpStatus.CREATED);
     }
 

@@ -16,12 +16,19 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        retries: 3
+        retries.backoff.ms: 1000
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       group-id: order-service
     properties:
       spring.json.trusted.packages: "*"
+    admin:
+      properties:
+        retries: 3
+        retries.backoff.ms: 1000
 server:
   port: 8082
 

@@ -1,7 +1,9 @@
 package org.example.productservice.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.productservice.dto.*;
+import org.example.productservice.events.StockUpdateEvent;
 import org.example.productservice.exceptions.ProductNotFoundException;
 import org.example.productservice.model.Product;
 import org.example.productservice.repository.ProductRepository;
@@ -11,46 +13,24 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ProductService {
 
     private final ProductRepository productRepository;
-    private final KafkaTemplate<String, ProductDetailsResponse> kafkaTemplate;
-
     @Transactional(readOnly = true)
     public List<ProductResponseDTO> findAll() {
         return productRepository.findAll()
                 .stream()
                 .map(ProductMapper::toResponseDTO)
                 .collect(Collectors.toList());
-    }
-    @Transactional
-    @KafkaListener(topics = "product-details-request-topic", groupId = "product-service")
-    public void handleProductDetailsRequest(ProductDetailsRequest request){
-        List<Product> products = productRepository.findAllById(request.getProductIds());
-
-        List<ProductDetails> productDetails = products.stream()
-                .map(product -> new ProductDetails(
-                        product.getId(),
-                        product.getPrice(),
-                        product.getStockQuantity()
-                ))
-                .toList();
-
-        ProductDetailsResponse productDetailsResponse = new ProductDetailsResponse();
-        productDetailsResponse.setOrderId(request.getOrderId());
-        productDetailsResponse.setProductDetails(productDetails);
-
-        kafkaTemplate.send("product-details-response-topic", productDetailsResponse);
     }
     @Transactional
     public ProductResponseDTO save(ProductRequestDTO productRequestDTO) {
@@ -113,5 +93,20 @@ public class ProductService {
         return savedProducts.stream()
                 .map(ProductMapper::toResponseDTO)
                 .collect(Collectors.toList());
+    }
+
+    @KafkaListener(topics = "stock-update", groupId = "product-service")
+    public void handleStockUpdateEvent(StockUpdateEvent stockUpdateEvent) {
+        Product product = productRepository.findById(stockUpdateEvent.getProductId())
+                .orElseThrow(() -> new ProductNotFoundException("Product not found with id " + stockUpdateEvent.getProductId()));
+
+        int newStockQuantity = product.getStockQuantity() - stockUpdateEvent.getQuantity();
+        if (newStockQuantity < 0) {
+            log.warn("{} is negative", stockUpdateEvent.getProductId());
+            return;
+        }
+        product.setStockQuantity(newStockQuantity);
+        productRepository.save(product);
+        log.info("{} stock updated", stockUpdateEvent.getProductId());
     }
 }

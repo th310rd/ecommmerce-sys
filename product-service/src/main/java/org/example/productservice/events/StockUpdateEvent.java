@@ -1,16 +1,13 @@
-package org.example.orderservice.dto;
+package org.example.productservice.events;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
-
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class ProductDetails {
+public class StockUpdateEvent {
     private Long productId;
-    private BigDecimal price;
-    private Integer stockQuantity;
+    private Integer quantity;
 }
