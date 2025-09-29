@@ -1,0 +1,106 @@
+:root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --muted: #9ca3af;
+    --text: #e5e7eb;
+    --primary: #6366f1;
+    --primary-600: #5457e6;
+    --border: #1f2937;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+}
+
+a {
+    color: var(--text);
+    text-decoration: none;
+}
+
+input,
+select,
+button {
+    font: inherit;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 16px;
+}
+
+.navbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 0;
+    position: sticky;
+    top: 0;
+}
+
+.navbar a {
+    opacity: 0.9;
+}
+
+.navbar a:hover {
+    opacity: 1;
+}
+
+.spacer {
+    flex: 1;
+}
+
+.btn {
+    background: var(--primary);
+    color: white;
+    border: 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: var(--primary-600);
+}
+
+.card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+}
+
+.grid {
+    display: grid;
+    gap: 12px;
+}
+
+.products {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.field {
+    display: grid;
+    gap: 6px;
+}
+
+.field input,
+.field select {
+    background: #0b1220;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+}
