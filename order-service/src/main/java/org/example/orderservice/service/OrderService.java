@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -31,65 +30,68 @@ public class OrderService {
 
     @Transactional
     public OrderResponseDto createOrder(OrderRequestDto orderRequestDto) throws OutOfStockException {
-        Order order = new  Order();
+        Order order = new Order();
         order.setStatus(Status.PENDING);
-        BigDecimal totalPrice = BigDecimal.ZERO;
-        order.setItems(orderRequestDto.getOrderItems().stream()
-                .map(orderItemMapper::toEntity)
-                .toList());
+        order.setOrderDate(LocalDateTime.now());
 
-        for (OrderItem item : order.getItems()){
+        BigDecimal totalPrice = BigDecimal.ZERO;
+        List<OrderItem> items = orderRequestDto.getOrderItems().stream()
+                .map(orderItemMapper::toEntity)
+                .toList();
+
+        for (OrderItem item : items) {
             Product product = client.getProduct(item.getProductId());
-            if (item.getQuantity() > product.getStockQuantity()){
+            if (item.getQuantity() > product.getStockQuantity()) {
                 order.setStatus(Status.CANCELLED);
-                throw new OutOfStockException("Not enough product in the stock");
+                throw new OutOfStockException("Not enough product in stock");
             }
-            totalPrice = totalPrice.add(product.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
             item.setPrice(product.getPrice());
-            order.setTotalPrice(totalPrice);
-            order.setOrderDate(LocalDateTime.now());
+            totalPrice = totalPrice.add(product.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())));
         }
+
+        order.setItems(items);
+        order.setTotalPrice(totalPrice);
         orderRepository.save(order);
         publishStockUpdate(order);
+
         return orderMapper.toDto(order);
     }
 
-
-
     @Transactional(readOnly = true)
     public List<OrderResponseDto> getAllOrders() {
-        List<Order> orders = orderRepository.findAll();
-        return orders.stream()
+        return orderRepository.findAll().stream()
                 .map(orderMapper::toDto)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public Optional<OrderResponseDto> getOrderById(Long id) {
+    public OrderResponseDto getOrderById(Long id) {
         Order order = orderRepository.findById(id)
-                .orElseThrow(()->new OrderNotFoundException("Order with id " + id + "not found"));
-        return Optional.of(orderMapper.toDto(order));
+                .orElseThrow(() -> new OrderNotFoundException("Order with id " + id + " not found"));
+        return orderMapper.toDto(order);
     }
 
     @Transactional
-    public OrderResponseDto updateOrderById(Long id, Status status) {
-        Order oldOrder = orderRepository.findById(id)
-                .orElseThrow(()->new OrderNotFoundException("Order with id " + id + "not found"));
+    public OrderResponseDto updateOrderStatus(Long id, Status newStatus) {
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException("Order with id " + id + " not found"));
 
-        oldOrder.setStatus(status);
-        orderRepository.save(oldOrder);
-        return orderMapper.toDto(oldOrder);
+        if (order.getStatus() == Status.CANCELLED) {
+            throw new IllegalStateException("Cannot update a cancelled order");
+        }
+
+        order.setStatus(newStatus);
+        orderRepository.save(order);
+        return orderMapper.toDto(order);
     }
 
     @Transactional
-    public void deleteOrderById(Long id) {
-        Order oldOrder = orderRepository.findById(id)
-                        .orElseThrow(()->new OrderNotFoundException("Order with id " + id + "not found"));
-        orderRepository.delete(oldOrder);
+    public void cancelOrder(Long id) {
+        updateOrderStatus(id, Status.CANCELLED);
     }
 
-    public void publishStockUpdate(Order order) {
-        for (OrderItem item : order.getItems()){
+    private void publishStockUpdate(Order order) {
+        for (OrderItem item : order.getItems()) {
             StockUpdateEvent event = new StockUpdateEvent(item.getProductId(), item.getQuantity());
             kafkaTemplate.send("stock-update", event);
         }

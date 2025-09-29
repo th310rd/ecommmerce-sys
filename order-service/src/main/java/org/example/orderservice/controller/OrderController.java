@@ -7,11 +7,9 @@ import org.example.orderservice.exceptions.OutOfStockException;
 import org.example.orderservice.model.Status;
 import org.example.orderservice.service.OrderService;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/orders")
@@ -20,28 +18,29 @@ public class OrderController {
     private final OrderService orderService;
 
     @GetMapping
-    public ResponseEntity<List<OrderResponseDto>> getAllOrders() {
-        return ResponseEntity.ok(orderService.getAllOrders());
+    public List<OrderResponseDto> getAllOrders() {
+        return orderService.getAllOrders();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Optional<OrderResponseDto>> getOrderById(@PathVariable Long id) {
-        return ResponseEntity.ok(orderService.getOrderById(id));
+    public OrderResponseDto getOrderById(@PathVariable Long id) {
+        return orderService.getOrderById(id);
     }
 
     @PostMapping
-    public ResponseEntity<OrderResponseDto> createOrder(@RequestBody OrderRequestDto orderRequestDto) throws OutOfStockException {
-        return new ResponseEntity<>(orderService.createOrder(orderRequestDto), HttpStatus.CREATED);
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderResponseDto createOrder(@RequestBody OrderRequestDto orderRequestDto) throws OutOfStockException {
+        return orderService.createOrder(orderRequestDto);
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<OrderResponseDto> updateOrder(@PathVariable Long id, @RequestParam Status status) {
-        return ResponseEntity.ok(orderService.updateOrderById(id, status));
+    @PatchMapping("/{id}/status")
+    public OrderResponseDto updateOrderStatus(@PathVariable Long id, @RequestParam Status status) {
+        return orderService.updateOrderStatus(id, status);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteOrder(@PathVariable Long id) {
-        orderService.deleteOrderById(id);
-        return ResponseEntity.noContent().build();
+    @PostMapping("/{id}/cancel")
+    @ResponseStatus(HttpStatus.OK)
+    public void cancelOrder(@PathVariable Long id) {
+         orderService.cancelOrder(id);
     }
 }
